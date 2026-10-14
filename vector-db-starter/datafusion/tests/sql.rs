@@ -377,6 +377,7 @@ mod day_01 {
             );
         }
     }
+
     mod checkpoint_4 {
         use super::super::*;
 
@@ -442,6 +443,7 @@ mod day_01 {
             assert_eq!(ids.values(), &[10, 20]);
         }
     }
+
     mod checkpoint_5 {
         use super::super::*;
 
