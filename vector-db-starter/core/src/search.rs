@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashSet};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Neighbor {
@@ -68,8 +68,16 @@ impl TopK {
     }
 }
 
-pub fn recall_at_k(_expected: &[Neighbor], _actual: &[Neighbor], _k: usize) -> f64 {
-    todo!("Day 2: compute top-k row-offset overlap")
+pub fn recall_at_k(expected: &[Neighbor], actual: &[Neighbor], k: usize) -> f64 {
+    let new_k = k.min(expected.len());
+    if new_k == 0 {
+        return 1.0f64;
+    }
+
+    let seen = (0..new_k).map(|i| expected[i].row).collect::<HashSet<_>>();
+    let actual = actual.iter().map(|e| e.row).collect::<HashSet<_>>();
+    let cnt = actual.iter().filter(|e| seen.contains(e)).count();
+    cnt as f64 / new_k as f64
 }
 
 #[derive(Debug, Clone)]
@@ -95,5 +103,12 @@ impl DeterministicRng {
 
     pub(crate) fn coin_flip(&mut self) -> bool {
         self.next_u64() & 1 == 0
+    }
+
+    pub(crate) fn shuffle(&mut self, arr: &mut [usize]) {
+        for i in (1..arr.len()).rev() {
+            let j = self.index(i + 1); // j ∈ [0, i]
+            arr.swap(i, j);
+        }
     }
 }
