@@ -1,15 +1,68 @@
 use crate::{Dataset, Metric, Neighbor};
+use std::collections::{BinaryHeap, HashSet};
 
 pub(crate) fn search_layer(
-    _dataset: &Dataset,
-    _metric: Metric,
-    _query: &[f32],
-    _adjacency: &[Vec<usize>],
-    _entry_points: &[usize],
-    _ef: usize,
-    _allowed_rows: usize,
+    dataset: &Dataset,
+    metric: Metric,
+    query: &[f32],
+    adjacency: &[Vec<usize>],
+    entry_points: &[usize],
+    ef: usize,
+    allowed_rows: usize,
 ) -> Vec<Neighbor> {
-    todo!("Day 3: traverse the graph with separate candidate and result frontiers")
+    if ef == 0 {
+        return vec![];
+    }
+
+    let mut candidates = BinaryHeap::with_capacity(ef);
+    let mut results = BinaryHeap::with_capacity(ef + 1);
+    let mut visited = HashSet::new();
+
+    for &row in entry_points {
+        if row >= allowed_rows {
+            continue;
+        }
+        visited.insert(row);
+    }
+    for &row in &visited {
+        let d = metric.distance(query, dataset.vector(row));
+        candidates.push(Neighbor { row, distance: -d });
+        results.push(Neighbor { row, distance: d });
+        if results.len() > ef {
+            results.pop();
+        }
+    }
+
+    while let Some(candidate) = candidates.pop() {
+        if results.len() == ef && -candidate.distance > results.peek().unwrap().distance {
+            break;
+        }
+
+        for &v in &adjacency[candidate.row] {
+            if v >= allowed_rows || visited.contains(&v) {
+                continue;
+            }
+            visited.insert(v);
+
+            let d = metric.distance(query, dataset.vector(v));
+            let neighbor = Neighbor {
+                row: v,
+                distance: d,
+            };
+            if results.len() < ef || neighbor.lt(results.peek().unwrap()) {
+                candidates.push(Neighbor {
+                    row: v,
+                    distance: -d,
+                });
+                results.push(neighbor);
+                if results.len() > ef {
+                    results.pop();
+                }
+            }
+        }
+    }
+
+    results.into_sorted_vec()
 }
 
 pub(crate) fn greedy_search(
@@ -24,11 +77,23 @@ pub(crate) fn greedy_search(
 }
 
 pub(crate) fn prune_neighbors(
-    _dataset: &Dataset,
-    _metric: Metric,
-    _owner: usize,
-    _neighbors: &mut Vec<usize>,
-    _max_connections: usize,
+    dataset: &Dataset,
+    metric: Metric,
+    owner: usize,
+    neighbors: &mut Vec<usize>,
+    max_connections: usize,
 ) {
-    todo!("Day 3: retain the closest deterministic neighbor set")
+    let mut heap = BinaryHeap::with_capacity(max_connections + 1);
+    let vectors = dataset.vectors();
+
+    let neighbor_set: HashSet<usize> = neighbors.iter().copied().collect();
+    for row in neighbor_set {
+        let distance = metric.distance(vectors[owner].as_ref(), vectors[row].as_ref());
+        heap.push(Neighbor { row, distance });
+        if heap.len() > max_connections {
+            heap.pop();
+        }
+    }
+
+    *neighbors = heap.into_sorted_vec().iter().map(|n| n.row).collect();
 }
