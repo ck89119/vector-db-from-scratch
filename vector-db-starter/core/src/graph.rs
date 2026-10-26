@@ -66,14 +66,35 @@ pub(crate) fn search_layer(
 }
 
 pub(crate) fn greedy_search(
-    _dataset: &Dataset,
-    _metric: Metric,
-    _query: &[f32],
-    _adjacency: &[Vec<usize>],
-    _entry: usize,
-    _allowed_rows: usize,
+    dataset: &Dataset,
+    metric: Metric,
+    query: &[f32],
+    adjacency: &[Vec<usize>],
+    entry: usize,
+    allowed_rows: usize,
 ) -> usize {
-    todo!("Day 4: greedily descend one HNSW layer")
+    let mut cur = Neighbor {
+        row: entry,
+        distance: metric.distance(query, dataset.vector(entry)),
+    };
+    loop {
+        if let Some(neighbor) = adjacency[cur.row]
+            .iter()
+            .filter(|&&row| row < allowed_rows)
+            .map(|&row| Neighbor {
+                row,
+                distance: metric.distance(query, dataset.vector(row)),
+            })
+            .min()
+            && neighbor.lt(&cur)
+        {
+            cur = neighbor;
+        } else {
+            break;
+        }
+    }
+
+    cur.row
 }
 
 pub(crate) fn prune_neighbors(
