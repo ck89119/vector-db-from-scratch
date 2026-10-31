@@ -1,4 +1,5 @@
-use crate::search::{DeterministicRng, TopK};
+use crate::pq::k_means;
+use crate::search::TopK;
 use crate::{Dataset, Metric, Neighbor, Result, VectorError, VectorIndex};
 
 #[derive(Debug, Clone, Copy)]
@@ -41,96 +42,14 @@ impl IvfFlatIndex {
 
         dataset.validate_for_metric(metric)?;
 
-        let mut rng = DeterministicRng::new(config.seed);
-        let mut offsets: Vec<usize> = (0..dataset.len()).collect();
-        rng.shuffle(offsets.as_mut_slice());
-
-        let mut lists = (0..config.partitions)
-            .map(|i| vec![offsets[i]])
-            .collect::<Vec<_>>();
-        let mut centroids = vec![vec![]; lists.len()];
-
-        for _ in 0..config.iterations {
-            let dim = dataset.dimension();
-            let normalize = |vec: &mut Vec<f32>| {
-                let norm = Metric::squared_norm(vec).sqrt();
-                for x in vec {
-                    *x = ((*x as f64) / norm) as f32;
-                }
-            };
-
-            for (idx, row_list) in lists.iter().enumerate() {
-                if row_list.is_empty() {
-                    continue;
-                }
-
-                let mut sums = vec![0f64; dim];
-                for &row in row_list {
-                    let vec = &dataset.vectors()[row];
-                    for j in 0..dim {
-                        sums[j] += vec[j] as f64;
-                    }
-                }
-
-                let mut centroid = sums
-                    .iter()
-                    .map(|sum| (sum / row_list.len() as f64) as f32)
-                    .collect::<Vec<_>>();
-
-                if metric == Metric::Cosine {
-                    if Metric::squared_norm(&centroid) == 0.0 {
-                        centroid = dataset.vectors()[row_list[0]].to_vec();
-                    }
-                    normalize(&mut centroid);
-                }
-
-                centroids[idx] = centroid;
-            }
-
-            for (idx, row_list) in lists.iter().enumerate() {
-                if !row_list.is_empty() {
-                    continue;
-                }
-
-                let mut centroid = dataset
-                    .vectors()
-                    .iter()
-                    .map(|row| {
-                        let dis = centroids
-                            .iter()
-                            .map(|c| metric.distance(row, c))
-                            .min_by(|a, b| a.total_cmp(&b))
-                            .expect("empty centroids");
-                        (row, dis)
-                    })
-                    .max_by(|a, b| a.1.total_cmp(&b.1))
-                    .expect("empty dataset")
-                    .0
-                    .clone();
-
-                if metric == Metric::Cosine {
-                    normalize(&mut centroid);
-                }
-                centroids[idx] = centroid;
-            }
-
-            let mut new_lists = vec![vec![]; centroids.len()];
-            for &row in &offsets {
-                let centroid_idx = centroids
-                    .iter()
-                    .enumerate()
-                    .map(|(i, c)| (i, metric.distance(&dataset.vectors()[row], c)))
-                    .min_by(|a, b| a.1.total_cmp(&b.1))
-                    .expect("empty centroids")
-                    .0;
-                new_lists[centroid_idx].push(row);
-            }
-
-            if lists.eq(&new_lists) {
-                break;
-            }
-            lists = new_lists;
-        }
+        let (centroids, lists) = k_means(
+            dataset.vectors(),
+            dataset.dimension(),
+            config.partitions,
+            config.iterations,
+            metric,
+            config.seed,
+        );
 
         Ok(Self {
             dataset,
@@ -161,17 +80,17 @@ impl IvfFlatIndex {
             return Err(VectorError::InvalidConfig("Invalid config"));
         }
 
-        let mut centroids = self
-            .centroids
-            .iter()
-            .enumerate()
-            .map(|(i, c)| (i, self.metric.distance(c, query)))
-            .collect::<Vec<_>>();
-        centroids.sort_unstable_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+        let mut centroids = TopK::new(probes);
+        for (i, c) in self.centroids.iter().enumerate() {
+            centroids.push(Neighbor {
+                row: i,
+                distance: self.metric.distance(c, query),
+            })
+        }
 
         let mut top_k = TopK::new(k.min(self.dataset.len()));
-        for i in 0..probes {
-            for &row in &self.lists[centroids[i].0] {
+        while let Some(c) = centroids.pop() {
+            for &row in &self.lists[c.row] {
                 let vec = &self.dataset.vectors()[row];
                 top_k.push(Neighbor {
                     row,

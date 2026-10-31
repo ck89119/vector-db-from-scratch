@@ -53,6 +53,10 @@ impl TopK {
         }
     }
 
+    pub(crate) fn pop(&mut self) -> Option<Neighbor> {
+        self.heap.pop()
+    }
+
     pub(crate) fn worst(&self) -> Option<Neighbor> {
         self.heap.peek().copied()
     }
