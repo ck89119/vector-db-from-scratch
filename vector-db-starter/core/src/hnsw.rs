@@ -157,7 +157,7 @@ impl HnswIndex {
             );
         }
 
-        Ok(search_layer(
+        let mut result = search_layer(
             &self.dataset,
             self.metric,
             query,
@@ -165,7 +165,9 @@ impl HnswIndex {
             &[cur],
             ef_search.max(k),
             self.dataset.len(),
-        ))
+        );
+        result.truncate(k);
+        Ok(result)
     }
 
     pub fn layer(&self, level: usize) -> Option<&[Vec<usize>]> {

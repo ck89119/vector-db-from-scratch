@@ -261,27 +261,27 @@ fn ivf_pq_config() -> IvfPqConfig {
 }
 
 fn build_nsw(
-    _dataset: Dataset,
-    _metric: Metric,
-    _config: NswConfig,
+    dataset: Dataset,
+    metric: Metric,
+    config: NswConfig,
 ) -> vector_core_starter::Result<NswIndex> {
-    todo!("Day 6: build NSW with the benchmark configuration")
+    NswIndex::try_new(dataset, metric, config)
 }
 
 fn build_hnsw(
-    _dataset: Dataset,
-    _metric: Metric,
-    _config: HnswConfig,
+    dataset: Dataset,
+    metric: Metric,
+    config: HnswConfig,
 ) -> vector_core_starter::Result<HnswIndex> {
-    todo!("Day 6: build HNSW with the benchmark configuration")
+    HnswIndex::try_new(dataset, metric, config)
 }
 
 fn build_ivf_pq(
-    _dataset: Dataset,
-    _metric: Metric,
-    _config: IvfPqConfig,
+    dataset: Dataset,
+    metric: Metric,
+    config: IvfPqConfig,
 ) -> vector_core_starter::Result<IvfPqIndex> {
-    todo!("Day 6: build IVF-PQ with the benchmark configuration")
+    IvfPqIndex::try_new(dataset, metric, config)
 }
 
 fn summarize(
@@ -357,9 +357,9 @@ fn validate_run(
     Ok(())
 }
 
-fn report_percentiles(_sorted: &[Duration]) -> (Duration, Duration) {
-    let _helper = percentile;
-    todo!("Day 6: use the supplied nearest-rank percentile helper")
+fn report_percentiles(sorted: &[Duration]) -> (Duration, Duration) {
+    let helper = percentile;
+    (helper(sorted, 50), helper(sorted, 99))
 }
 
 fn validate_neighbors(
